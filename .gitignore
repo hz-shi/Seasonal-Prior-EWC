@@ -1,0 +1,23 @@
+# Python cache/artifacts
+__pycache__/
+*.py[cod]
+*.so
+
+# Notebook artifacts
+.ipynb_checkpoints/
+
+# Local editor settings
+.vscode/
+
+# Experiment outputs and checkpoints
+experiments/**/vis_*/
+experiments/**/*.ckpt
+experiments/**/*.dat
+experiments/**/*.zarr/
+
+# Generated figures
+img/
+
+# Runtime/log artifacts
+*.log
+*.tmp

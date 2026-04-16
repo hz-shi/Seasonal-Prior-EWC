@@ -1,0 +1,90 @@
+# PM2.5 forecast config (TOML)
+# Run:
+# /root/miniconda3/bin/python -m src.cli --config configs/pm25_forecast.toml
+
+# You can keep keys flat, or use sections. The CLI will flatten one section level.
+
+[data]
+year_path = "/shz/data/year.zarr"
+eral_path = "/shz/data/eral.zarr"
+erap_path = "/shz/data/erap.zarr"
+gfs_path = "/shz/data/gfs.zarr"
+meic_path = "/shz/data/meic.zarr"
+pm25_path = "/shz/data/pm25.zarr"
+
+[run]
+model_name = "earthformer"      # earthformer | iam4vp | phydnet
+mode = "rolling_train_predict"   # train | predict | train_predict | rolling_train_predict
+ckpt_path = ""
+work_dir = "/shz/PM_re/experiments/pm25_earthformer"
+
+[window]
+in_len = 5
+out_len = 3
+patch_h = 256
+patch_w = 320
+patch_stride_h = 192
+patch_stride_w = 256
+
+[split]
+train_target_start = "2018-11-02"  # first rolling window start (used as lower bound)
+train_target_end = "2018-12-31"    # first rolling window end for 2019-01-01 forecast
+val_target_start = "2018-12-25"
+val_target_end = "2018-12-31"
+
+[rolling]
+rolling_train_window_days = 60
+rolling_step_days = 1
+rolling_refit_norm_every_n_windows = 0
+# rolling_enable_val = true
+
+[train]
+batch_size = 1
+num_workers = 0
+prefetch_factor = 4
+pin_memory = true
+shm_cache_enabled = true
+shm_cache_dir = "/dev/shm/pm25_window_cache"
+shm_cache_max_items = 16384
+shm_cache_min_free_gb = 50
+
+zarr_parallel_backend = "thread"
+zarr_read_workers = 8
+
+max_epochs = 1
+dry_run_steps = 0
+lr = 1e-3
+weight_decay = 1e-4
+
+[model]
+base_units = 128
+num_heads = 4
+
+# Earthformer structure/regularization
+earthformer_enc_depth = [4,4,4]
+earthformer_dec_depth = [2,2,2]
+earthformer_downsample = 2
+earthformer_num_global_vectors = 4
+earthformer_z_init_method = "nearest_interp"   # zeros | nearest_interp | last | mean
+earthformer_initial_downsample_scale = 2
+earthformer_initial_downsample_conv_layers = 2
+earthformer_final_upsample_conv_layers = 2
+earthformer_attn_drop = 0.0
+earthformer_proj_drop = 0.0
+earthformer_ffn_drop = 0.0
+
+iam4vp_hid_s = 64
+iam4vp_hid_t = 512
+iam4vp_n_s = 4
+iam4vp_n_t = 6
+
+[runtime]
+accelerator = "auto"
+devices = [0]
+# cuda_visible_devices = "1"
+precision = "16-mixed"
+
+[normalize]
+x_norm_mode = "auto"             # auto | none | zscore | minmax_01 | minmax_m11
+y_norm_mode = "auto"
+norm_stats_path = ""             # empty means <work_dir>/normalizer_stats.npz
