@@ -1,0 +1,100 @@
+# PM2.5 Earthformer no-EWC config (paper Table 2 / §3.3).
+# Rolling 60d/3d, in_len=5, out_len=3, max_epochs=20, AdamW wd=1e-4, seed=42.
+
+[data]
+year_path = "data/year.zarr"
+eral_path = "data/eral.zarr"
+erap_path = "data/erap.zarr"
+gfs_path = "data/gfs.zarr"
+meic_path = "data/meic.zarr"
+pm25_path = "data/pm25.zarr"
+# Known-future GFS covariates (forecast days t+1..t+out_len) as extra input planes.
+future_gfs_enabled = true
+
+[run]
+model_name = "earthformer"
+seed = 42
+mode = "rolling_train_predict"
+ckpt_path = ""
+work_dir = "experiments/pm25_earthformer_no_ewc"
+predict_output_prefix = "pm25_pred_2019_earthformer_no_ewc"
+
+[window]
+in_len = 5
+out_len = 3
+patch_h = 384
+patch_w = 384
+patch_stride_h = 192
+patch_stride_w = 192
+
+[split]
+# First rolling cycle: 53 training target days, then 7 validation target days.
+train_target_start = "2018-11-02"
+train_target_end = "2018-12-24"
+val_target_start = "2018-12-25"
+val_target_end = "2018-12-31"
+
+[rolling]
+rolling_train_window_days = 60
+rolling_step_days = 3
+rolling_train_start_date = "2018-01-01"
+rolling_refit_norm_every_n_windows = 0
+rolling_enable_val = true
+rolling_start_window_idx = 0
+resume_rolling = false
+
+[train]
+batch_size = 1
+num_workers = 2
+prefetch_factor = 2
+pin_memory = true
+persistent_workers = false
+shm_cache_enabled = false
+shm_cache_dir = "/dev/shm/pm25_window_cache_earthformer_no_ewc_384x384"
+shm_cache_max_items = 256
+shm_cache_min_free_gb = 96
+shm_cache_x_dtype = "float16"
+cuda_prefetch = true
+dataloader_multiprocessing_context = "spawn"
+train_patches_per_sample = 4
+
+zarr_parallel_backend = "thread"
+zarr_read_workers = 2
+preload_to_memory = false
+
+max_epochs = 20
+log_every_n_steps = 1
+dry_run_steps = 0
+lr = 2e-4
+weight_decay = 1e-4
+
+[model]
+base_units = 128
+num_heads = 4
+
+earthformer_enc_depth = [4, 4, 4]
+earthformer_dec_depth = [2, 2, 2]
+earthformer_downsample = 2
+earthformer_num_global_vectors = 4
+earthformer_z_init_method = "nearest_interp"
+earthformer_initial_downsample_scale = 2
+earthformer_initial_downsample_conv_layers = 2
+earthformer_final_upsample_conv_layers = 2
+earthformer_attn_drop = 0.0
+earthformer_proj_drop = 0.0
+earthformer_ffn_drop = 0.0
+
+[runtime]
+accelerator = "auto"
+devices = [0]
+precision = "bf16-mixed"
+matmul_precision = "high"
+
+[normalize]
+x_norm_mode = "zscore"
+y_norm_mode = "zscore"
+norm_stats_path = "experiments/pm25_earthformer_no_ewc/normalizer_stats.npz"
+
+[regularization]
+ca_ewc_enabled = false
+ca_ewc_lambda = 0.0

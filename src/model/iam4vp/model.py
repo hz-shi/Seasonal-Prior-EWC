@@ -71,24 +71,31 @@ class LP(nn.Module):
 
 
 class Decoder(nn.Module):
-    def __init__(self,C_hid, C_out, N_S):
+    def __init__(self, C_hid, C_out, N_S, seq_len):
         super(Decoder,self).__init__()
+        self.seq_len = int(seq_len)
         strides = stride_generator(N_S, reverse=True)
         self.dec = nn.Sequential(
             *[ConvSC(C_hid, C_hid, stride=s, transpose=True) for s in strides[:-1]],
             ConvSC(2*C_hid, C_hid, stride=strides[-1], transpose=True)
         )
-        # self.readout = nn.Conv2d(640, 64, 1)
-        self.readout = nn.Conv2d(C_hid*5, 64, 1)
+        self.readout = nn.Conv2d(C_hid * self.seq_len, 64, 1)
 
 
-    def forward(self, hid, enc1=None):
+    def forward(self, hid, enc1=None, batch_size=None, seq_len=None):
         for i in range(0,len(self.dec)-1):
             hid = self.dec[i](hid)
         Y = self.dec[-1](torch.cat([hid, enc1], dim=1))
-        ys = Y.shape
-        # Y = Y.reshape(int(ys[0]/10), int(ys[1]*10), 64, 64)
-        Y = Y.reshape(1, ys[1]*ys[0], 768, 1280)
+        if batch_size is None:
+            raise ValueError("Decoder.forward requires batch_size.")
+        seq_len = self.seq_len if seq_len is None else int(seq_len)
+        if seq_len != self.seq_len:
+            raise ValueError(f"Decoder seq_len mismatch: expected {self.seq_len}, got {seq_len}.")
+        b_t, channels, height, width = Y.shape
+        expected = int(batch_size) * self.seq_len
+        if b_t != expected:
+            raise ValueError(f"Decoder temporal shape mismatch: got {b_t}, expected {expected}.")
+        Y = Y.reshape(int(batch_size), self.seq_len * channels, height, width)
         Y = self.readout(Y)
         return Y
 
@@ -107,27 +114,51 @@ class Predictor(nn.Module):
         B, T, C, H, W = x.shape
         x = x.reshape(B, T*C, H, W)
         z = self.st_block[0](x, time_emb)
-        for i in range(1, self.N_T):
+        for i in range(1, len(self.st_block)):
             z = self.st_block[i](z, time_emb)
 
         y = z.reshape(B, int(T/2), C, H, W)
         return y
 
+
+def _encoded_spatial_dim(size, n_s):
+    out = int(size)
+    for stride in stride_generator(n_s):
+        if stride == 2:
+            out = (out + 1) // 2
+    return out
+
 class IAM4VP(nn.Module):
     def __init__(self, shape_in, hid_S=64, hid_T=512, N_S=4, N_T=6):
         super(IAM4VP, self).__init__()
         T, C, H, W = shape_in
+        self.seq_len = int(T)
+        self.input_hw = (int(H), int(W))
+        latent_h = _encoded_spatial_dim(H, N_S)
+        latent_w = _encoded_spatial_dim(W, N_S)
         self.time_mlp = Time_MLP(dim=64)
         self.enc = Encoder(C, hid_S, N_S)
         self.hid = Predictor(T*hid_S, hid_T, N_T)
-        self.dec = Decoder(hid_S, C, N_S)
+        self.dec = Decoder(hid_S, C, N_S, seq_len=T)
         self.attn = Attention(64)
         self.readout = nn.Conv2d(64, 1, 1)
-        self.mask_token = nn.Parameter(torch.zeros(T, hid_S, 192, 320))
+        self.mask_token = nn.Parameter(torch.zeros(T, hid_S, latent_h, latent_w))
         self.lp = LP(1, hid_S, N_S)
 
     def forward(self, x_raw, y_raw=None, t=None):
+        y_raw = [] if y_raw is None else y_raw
         B, T, C, H, W = x_raw.shape
+        if T != self.seq_len:
+            raise ValueError(f"IAM4VP expected input length {self.seq_len}, got {T}.")
+        if (H, W) != self.input_hw:
+            raise ValueError(f"IAM4VP expected spatial size {self.input_hw}, got {(H, W)}.")
+        if len(y_raw) > self.seq_len:
+            raise ValueError(f"IAM4VP received {len(y_raw)} autoregressive frames, max is {self.seq_len}.")
+        if t is None:
+            t = torch.zeros(B, device=x_raw.device)
+        elif t.ndim == 0:
+            t = t.repeat(B)
+        t = t.to(device=x_raw.device, dtype=x_raw.dtype).view(B)
         x = x_raw.view(B*T, C, H, W)
         time_emb = self.time_mlp(t)
         embed, skip = self.enc(x)
@@ -145,7 +176,7 @@ class IAM4VP(nn.Module):
         hid = self.hid(z, time_emb)
         hid = hid.reshape(B*T, C_, H_, W_)
 
-        Y = self.dec(hid, skip)
+        Y = self.dec(hid, skip, batch_size=B, seq_len=T)
         Y = self.attn(Y)
         Y = self.readout(Y)
         return Y

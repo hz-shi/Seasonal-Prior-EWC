@@ -24,9 +24,13 @@ class IAM4VPAdapter(PM25ModelAdapter):
         self.model = IAM4VP([in_len, 1, patch_h, patch_w], hid_S=hid_s, hid_T=hid_t, N_S=n_s, N_T=n_t)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # IAM4VP expects (B,T,C,H,W) and currently has hardcoded behavior in upstream implementation.
+        # IAM4VP expects (B,T,C,H,W) and predicts one autoregressive frame per call.
         btchw = x.permute(0, 1, 4, 2, 3).contiguous()
         b, t, c, h, w = btchw.shape
+        if t != self.in_len:
+            raise ValueError(f"IAM4VPAdapter expected input length {self.in_len}, got {t}.")
+        if (h, w) != (self.patch_h, self.patch_w):
+            raise ValueError(f"IAM4VPAdapter expected patch {(self.patch_h, self.patch_w)}, got {(h, w)}.")
         flat = btchw.reshape(b * t, c, h, w)
         flat = self.channel_proj(flat)
         x_1ch = flat.reshape(b, t, 1, h, w)
@@ -34,15 +38,14 @@ class IAM4VPAdapter(PM25ModelAdapter):
         pred_list = []
         outputs = []
         for step in range(self.out_len):
-            t_embed = torch.full((b,), float(step * 100), device=x.device)
+            t_embed = torch.full((b,), float(step * 100), device=x.device, dtype=x.dtype)
             y = self.model(x_1ch, y_raw=pred_list, t=t_embed)
             if y.ndim != 4:
                 raise RuntimeError(f"IAM4VP output rank mismatch, got shape={tuple(y.shape)}")
             if y.shape[0] != b:
-                raise RuntimeError(
-                    "IAM4VP current implementation appears to force batch size 1. "
-                    f"Got input batch={b}, output batch={y.shape[0]}."
-                )
+                raise RuntimeError(f"IAM4VP output batch mismatch: input={b}, output={y.shape[0]}.")
+            if tuple(y.shape[1:]) != (1, h, w):
+                raise RuntimeError(f"IAM4VP output shape mismatch, got shape={tuple(y.shape)}.")
             pred_list.append(y)
             outputs.append(y)
 

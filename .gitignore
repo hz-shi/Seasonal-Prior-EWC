@@ -1,6 +1,7 @@
 # Python cache/artifacts
 __pycache__/
 *.py[cod]
+*.pyc
 *.so
 
 # Notebook artifacts
@@ -21,3 +22,16 @@ img/
 # Runtime/log artifacts
 *.log
 *.tmp
+
+# macOS
+.DS_Store
+
+# Data and experiment outputs (not tracked)
+data/
+experiments/
+results/
+
+# Model checkpoints and array artifacts
+*.ckpt
+*.pt
+*.npz

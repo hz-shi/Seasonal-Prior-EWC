@@ -1,0 +1,50 @@
+# Seasonal-Prior-EWC — Python dependencies
+#
+# Reference environment (paper): Python 3.11, CUDA 12.8.
+# The torch / torchvision pins below are the CUDA 12.8 builds used in the paper
+# (torch 2.10.0+cu128, torchvision 0.25.0+cu128). Install with:
+#
+#     pip install -r requirements.txt
+#
+# For a CPU-only or different CUDA build, install torch/torchvision from the
+# matching PyTorch wheel index instead of the pinned versions below.
+
+# --- Deep learning core ---
+torch==2.10.0
+torchvision==0.25.0
+pytorch-lightning==2.6.4
+torchmetrics==1.9.0
+
+# --- Data / arrays ---
+numpy==2.4.4
+pandas==3.0.3
+xarray==2026.4.0
+zarr==3.1.6
+numcodecs==0.16.5
+
+# --- Model building blocks ---
+einops==0.8.2
+timm==1.0.27
+
+# --- Plotting ---
+matplotlib==3.10.9
+
+# --- Optional: only required by the vendored Earthformer utilities ---
+# src/model/earthformer/ ships the full upstream Earthformer package, but the
+# model path used here only imports cuboid_transformer (+ patterns/utils).
+# The packages below are imported by the upstream datasets/, visualization/ and
+# metrics/ submodules, which this project does not use. Uncomment only if you
+# exercise those utilities.
+# opencv-python-headless==4.13.0.92
+# h5py==3.16.0
+# scipy==1.17.1
+# scikit-image==0.26.0
+# scikit-learn==1.8.0
+# omegaconf==2.3.0
+# pyproj==3.7.2
+# tqdm==4.67.3
+# requests==2.34.2
+# Pillow==12.2.0
+# cartopy            # not present in the reference environment
+# numba              # not present in the reference environment
+# apex               # optional Earthformer mixed-precision helper; not installed

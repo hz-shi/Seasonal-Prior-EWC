@@ -1,0 +1,128 @@
+# PM2.5 U-Net seasonal EWC config (paper Table 2 / §3.3).
+# Rolling 60d/3d, in_len=5, out_len=3, max_epochs=20, AdamW wd=1e-4, seed=42.
+
+[data]
+year_path = "data/year.zarr"
+eral_path = "data/eral.zarr"
+erap_path = "data/erap.zarr"
+gfs_path = "data/gfs.zarr"
+meic_path = "data/meic.zarr"
+pm25_path = "data/pm25.zarr"
+# Known-future GFS covariates (forecast days t+1..t+out_len) as extra input planes.
+future_gfs_enabled = true
+
+[run]
+model_name = "unet"
+seed = 42
+mode = "rolling_train_predict"
+ckpt_path = ""
+work_dir = "experiments/pm25_unet_seasonal_ewc"
+predict_output_prefix = "pm25_pred_2019_unet_seasonal_ewc"
+
+[window]
+in_len = 5
+out_len = 3
+patch_h = 768
+patch_w = 1280
+patch_stride_h = 256
+patch_stride_w = 512
+
+[split]
+# First rolling cycle: 53 training target days, then 7 validation target days.
+train_target_start = "2018-11-02"
+train_target_end = "2018-12-24"
+val_target_start = "2018-12-25"
+val_target_end = "2018-12-31"
+
+[rolling]
+rolling_train_window_days = 60
+rolling_step_days = 3
+rolling_train_start_date = "2018-01-01"
+rolling_refit_norm_every_n_windows = 0
+rolling_enable_val = true
+rolling_start_window_idx = 0
+resume_rolling = false
+
+[train]
+batch_size = 2
+num_workers = 2
+prefetch_factor = 2
+pin_memory = true
+persistent_workers = false
+shm_cache_enabled = false
+shm_cache_dir = "/dev/shm/pm25_window_cache_unet_seasonal_ewc_768x1280"
+shm_cache_max_items = 128
+shm_cache_min_free_gb = 96
+shm_cache_x_dtype = "float16"
+cuda_prefetch = true
+train_patches_per_sample = 1
+
+zarr_parallel_backend = "thread"
+zarr_read_workers = 2
+preload_to_memory = false
+
+max_epochs = 20
+log_every_n_steps = 1
+dry_run_steps = 0
+lr = 3e-4
+weight_decay = 1e-4
+
+[model]
+base_units = 128
+num_heads = 4
+
+earthformer_enc_depth = [4, 4, 4]
+earthformer_dec_depth = [2, 2, 2]
+earthformer_downsample = 2
+earthformer_num_global_vectors = 4
+earthformer_z_init_method = "nearest_interp"
+earthformer_initial_downsample_scale = 2
+earthformer_initial_downsample_conv_layers = 2
+earthformer_final_upsample_conv_layers = 2
+earthformer_attn_drop = 0.0
+earthformer_proj_drop = 0.0
+earthformer_ffn_drop = 0.0
+
+iam4vp_hid_s = 64
+iam4vp_hid_t = 512
+iam4vp_n_s = 4
+iam4vp_n_t = 6
+
+unet_base_channels = 32
+unet_depth = 6
+unet_dropout = 0.05
+
+[runtime]
+accelerator = "auto"
+devices = [0]
+precision = "bf16-mixed"
+matmul_precision = "high"
+
+[normalize]
+x_norm_mode = "minmax_01"
+y_norm_mode = "minmax_01"
+norm_stats_path = "experiments/pm25_unet_seasonal_ewc/normalizer_stats.npz"
+
+[regularization]
+ca_ewc_enabled = true
+ca_ewc_lambda = 3e-3
+ca_ewc_condition_scheme = "season4"
+ca_ewc_exclude_param_patterns = ["model.head.*"]
+ca_ewc_bank_path = "experiments/pm25_unet_seasonal_ewc/ca_ewc_bank_season4.pt"
+ca_ewc_auto_build_bank = true
+ca_ewc_offline_max_epochs = 1
+ca_ewc_offline_max_steps_per_condition = 0
+ca_ewc_fisher_batches = 32
+ca_ewc_offline_lr = 1e-4
+ca_ewc_offline_weight_decay = 1e-4
+ca_ewc_bank_dtype = "float16"
+ca_ewc_bank_train_start = "2017-01-01"
+ca_ewc_bank_train_end = "2018-12-31"
+ca_ewc_online_update_enabled = true
+ca_ewc_online_fisher_batches = 16
+ca_ewc_online_theta_alpha = 0.02
+ca_ewc_online_omega_alpha = 0.05
+ca_ewc_online_update_every_n_windows = 7
+ca_ewc_online_save_every_n_windows = 7
+ca_ewc_cache_warmup = false
+ca_ewc_cache_num_workers = 4

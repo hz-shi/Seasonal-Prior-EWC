@@ -20,6 +20,16 @@ from .utils import (
     _generalize_padding, _generalize_unpadding,
     apply_initialization, round_to)
 
+_checkpoint = checkpoint.checkpoint
+
+
+def _checkpoint_no_reentrant(function, *args, **kwargs):
+    kwargs.setdefault("use_reentrant", False)
+    return _checkpoint(function, *args, **kwargs)
+
+
+checkpoint.checkpoint = _checkpoint_no_reentrant
+
 
 class CuboidTransformerUNetDecoder(nn.Module):
     """U-Net style Decoder of the CuboidTransformer.

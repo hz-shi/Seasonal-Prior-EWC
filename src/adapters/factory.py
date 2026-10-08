@@ -4,6 +4,8 @@ from .base import PM25ModelAdapter
 from .earthformer_adapter import EarthformerAdapter
 from .iam4vp_adapter import IAM4VPAdapter
 from .phydnet_adapter import PhyDNetAdapter
+from .unet_adapter import UNetAdapter
+from .convlstm_adapter import ConvLSTMAdapter
 
 
 def build_model_adapter(
@@ -57,4 +59,25 @@ def build_model_adapter(
             patch_w=patch_w,
             in_channels=in_channels,
         )
-    raise ValueError(f"Unsupported model_name={model_name}. Choose from earthformer, iam4vp, phydnet.")
+    if name == "convlstm":
+        return ConvLSTMAdapter(
+            in_len=in_len,
+            out_len=out_len,
+            patch_h=patch_h,
+            patch_w=patch_w,
+            in_channels=in_channels,
+            hidden_dims=model_kwargs.get("convlstm_hidden_dims", [32, 32]),
+            kernel_size=int(model_kwargs.get("convlstm_kernel_size", 3)),
+        )
+    if name == "unet":
+        return UNetAdapter(
+            in_len=in_len,
+            out_len=out_len,
+            patch_h=patch_h,
+            patch_w=patch_w,
+            in_channels=in_channels,
+            base_channels=int(model_kwargs.get("unet_base_channels", 32)),
+            depth=int(model_kwargs.get("unet_depth", 4)),
+            dropout=float(model_kwargs.get("unet_dropout", 0.0)),
+        )
+    raise ValueError(f"Unsupported model_name={model_name}. Choose from earthformer, iam4vp, phydnet, unet, convlstm.")

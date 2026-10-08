@@ -1,1 +1,1 @@
-"""Training and inference scripts for PM2.5 forecasting."""
+"""Regularization utilities for PM2.5 forecasting."""
